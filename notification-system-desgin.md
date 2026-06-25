@@ -164,3 +164,78 @@ UPDATE notifications
 SET is_deleted = TRUE, updated_at = NOW()
 WHERE notification_id = 'notif-9182' AND student_id = 'student-1042';
 ```
+
+## Stage 3
+
+### Problem
+The example query is slow because it scans the whole table, sorts everything, and returns too much data.
+
+### Better query
+Use only the needed columns, add `is_deleted = FALSE`, and limit results:
+```sql
+SELECT notification_id, title, status, created_at
+FROM notifications
+WHERE student_id = 'student-1042'
+  AND status = 'unread'
+  AND is_deleted = FALSE
+ORDER BY created_at DESC
+LIMIT 50;
+```
+
+### Why this helps
+- Uses indexes instead of scanning every row
+- Returns only the fields the UI needs
+- Avoids sorting a huge result set
+
+### Placement query
+To find students with placement notifications in the last 7 days:
+```sql
+SELECT DISTINCT student_id
+FROM notifications
+WHERE notification_type = 'Placement'
+  AND created_at >= NOW() - INTERVAL '7 days'
+  AND is_deleted = FALSE;
+```
+
+## Stage 4
+
+### Issue
+Fetching notifications on every page load overloads the DB and hurts performance.
+
+### Solution
+- Load only recent notifications on first view
+- Use `limit` and `page`
+- Cache unread count or top notifications if possible
+- Refresh only new items with WebSocket or polling
+
+### Recommended flow
+1. Load first page with `limit=10`
+2. Show a `Load more` button for older notifications
+3. Update the list when new notifications arrive
+
+## Stage 5
+
+### Issue
+The naive `notify_all` loop is too slow and fragile for 50,000 students.
+
+### Better design
+- Use a job queue for batch processing
+- Save notifications first, then send email and push notifications asynchronously
+- Keep the API request fast and retry failures separately
+
+### Simple pseudocode
+```text
+function notify_all(student_ids, message):
+  for student_id in student_ids:
+    enqueue('create_notification', {studentId, message})
+
+function worker(payload):
+  save_to_db(payload)
+  enqueue('send_email', payload)
+  enqueue('push_notification', payload)
+```
+
+### Why this works
+- The request does not wait for 50,000 emails
+- Failures in one notification do not stop the entire batch
+- The system can scale to large student counts
