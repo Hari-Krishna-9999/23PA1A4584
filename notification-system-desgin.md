@@ -6,10 +6,10 @@
 Provide REST APIs for logged-in students to read notifications, update status, delete messages, and receive real-time events.
 
 ### Core Actions
-* Create a notification
+* Create notification
 * Fetch notifications with filters
 * Mark read/unread
-* Delete notifications
+* Delete notification
 * Stream new notifications live
 
 ### Endpoints
@@ -55,12 +55,7 @@ Response:
   "studentId":"student-1042",
   "total":12,
   "notifications":[
-    {
-      "notificationId":"notif-9182",
-      "title":"Placement Update",
-      "status":"unread",
-      "createdAt":"2026-06-25T08:00:00Z"
-    }
+    {"notificationId":"notif-9182","title":"Placement Update","status":"unread","createdAt":"2026-06-25T08:00:00Z"}
   ]
 }
 ```
@@ -85,41 +80,23 @@ Response:
 { "message":"Notification deleted successfully" }
 ```
 
-#### 5. Real-Time Notification Stream
+#### 5. Real-Time Stream
 `GET /api/notifications/stream`
 
-Stream Contract:
+Event payload:
 ```json
 {
   "event":"notification.created",
-  "data":{
-    "notificationId":"notif-9185",
-    "notificationType":"Placement",
-    "status":"unread"
-  }
+  "data":{"notificationId":"notif-9185","notificationType":"Placement","status":"unread"}
 }
 ```
 
-### Contract Rules
+### Rules
 * `Authorization: Bearer <token>` required
-* ISO 8601 timestamps for `createdAt` and `updatedAt`
+* `createdAt`/`updatedAt` use ISO 8601
 * `status`: `unread`, `read`, `deleted`
 * `notificationType`: `Event`, `Result`, `Placement`
-* `metadata` is optional for flexible front-end behavior
+* `metadata` is optional
 
-### Real-Time Notification Mechanism
-Use **WebSocket / Socket.IO**
-
-Flow:
-```text
-Admin creates notification
-↓
-Backend stores notification in database
-↓
-Socket server emits event
-↓
-Connected student receives notification instantly
-```
-
-### Summary
-The system supports secure REST APIs, notification lifecycle management, and real-time delivery using WebSocket architecture.
+### Real-Time Mechanism
+Use WebSocket / Socket.IO to emit `notification.created` when the backend stores a notification.
