@@ -100,3 +100,67 @@ Event payload:
 
 ### Real-Time Mechanism
 Use WebSocket / Socket.IO to emit `notification.created` when the backend stores a notification.
+
+## Stage 2
+
+### Persistent Storage Recommendation
+Use PostgreSQL because it provides strong consistency, efficient filtering, and reliable transactional updates for notifications.
+
+### Database Schema
+`notifications`
+- `notification_id` UUID PRIMARY KEY
+- `student_id` UUID NOT NULL
+- `title` TEXT NOT NULL
+- `message` TEXT NOT NULL
+- `notification_type` VARCHAR(32) NOT NULL
+- `priority` VARCHAR(16) NOT NULL DEFAULT 'normal'
+- `status` VARCHAR(16) NOT NULL DEFAULT 'unread'
+- `metadata` JSONB
+- `created_at` TIMESTAMPTZ NOT NULL DEFAULT NOW()
+- `updated_at` TIMESTAMPTZ NOT NULL DEFAULT NOW()
+- `is_deleted` BOOLEAN NOT NULL DEFAULT FALSE
+
+Indexes:
+- `(student_id, status)`
+- `(student_id, notification_type)`
+- `(student_id, created_at DESC)`
+
+### Volume Challenges
+- Large tables cause slower scans and sorts.
+- Unindexed filters on `student_id`/`status` degrade read performance.
+- Too many indexes increase write cost.
+- Synchronous real-time delivery can slow writes if tied directly to DB operations.
+
+### Solutions
+- Use targeted composite indexes for common query patterns.
+- Paginate results instead of returning full lists.
+- Soft delete with `is_deleted` rather than hard delete.
+- Archive or purge old notifications after a retention period.
+- Separate persistence from real-time broadcast via a queue or pub/sub.
+
+### Sample Queries
+Create notification:
+```sql
+INSERT INTO notifications (notification_id, student_id, title, message, notification_type, priority, status, metadata)
+VALUES ('notif-9182', 'student-1042', 'Placement Update', 'Interview scheduled for Monday.', 'Event', 'normal', 'unread', '{"company":"Acme Corp"}');
+```
+Fetch notifications:
+```sql
+SELECT notification_id, title, status, created_at
+FROM notifications
+WHERE student_id = 'student-1042' AND status = 'unread' AND is_deleted = FALSE
+ORDER BY created_at DESC
+LIMIT 20;
+```
+Mark read:
+```sql
+UPDATE notifications
+SET status = 'read', updated_at = NOW()
+WHERE notification_id = 'notif-9182' AND student_id = 'student-1042';
+```
+Delete notification:
+```sql
+UPDATE notifications
+SET is_deleted = TRUE, updated_at = NOW()
+WHERE notification_id = 'notif-9182' AND student_id = 'student-1042';
+```
